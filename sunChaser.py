@@ -7,13 +7,15 @@ from requests.exceptions import HTTPError
 def find_locations(start, distance):
     # return a list of locations as we can use to query noaa for weather reports.
     # locations must be within given distance of given location, and in lat/long format.
-    # locations = []
+    
+    maxRows = "10"
 
-    # TODO: how?
-    response = requests.get('http://api.geonames.org/findNearbyPlaceNameJSON?lat='+ str(start['lat']) + 
+    response = requests.get('http://api.geonames.org/findNearbyPostalCodesJSON?lat='+ str(start['lat']) + 
     '&lng=' + str(start['long']) + 
-    '&cities=10000&radius=' + distance + 
-    '&maxRows=10&localCountry=true&username=sunchaser')
+    '&cities5000&radius=' + distance + 
+    '&maxRows=' + maxRows +
+    '&localCountry=true&username=sunchaser')
+
     pp = pprint.PrettyPrinter(indent=4)
     print (pp.pprint(response.json()))
     # return locations
@@ -56,7 +58,7 @@ if __name__ == "__main__":
         "--distance",
         help="Maximum distance in miles to search for sun.",
         action="store",
-        default="100")
+        default="30")
 
     args = parser.parse_args()
 
