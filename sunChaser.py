@@ -51,7 +51,7 @@ def find_locations(origin, distance):
     locations = []
 
     # hey idiot, don't hardcode api keys
-    googleApiKey = "AIzaSyABQeWj3QdTqBb9dWyBnu0kTlIP9QdBYpU"
+    googleApiKey = ""
 
     # look up the nearest town to each coordinate in the grid and store its
     # name and lat/long.
