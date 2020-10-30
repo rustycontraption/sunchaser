@@ -8,6 +8,24 @@ import geopy
 from geopy.distance import geodesic
 from requests.exceptions import HTTPError
 
+def overpass_query(origin,distance):
+    # Query Open Street Map for cities within 100,000 meters of Seattle
+    # Return list of city names and lat/long coordinates
+    # TODO: build query based on origin and distance
+    result = requests.get("http://overpass-api.de/api/interpreter?data=[out:json];%28node%5B%22place%22%3D%22city%22%5D%28around%3A100000%2C47%2E6062%2C%2D122%2E3321%29%3Bnode%5B%22place%22%3D%22town%22%5D%28around%3A100000%2C47%2E6062%2C%2D122%2E3321%29%3B%29%3Bout%3B%0A")
+    nodes = result.json()
+
+    locations = []
+    for item in nodes["elements"]:
+        locations.append({
+            "name": item["tags"]["name"],
+            "lat": item["lat"],
+            "lon": item["lon"]
+            })
+    
+    return locations
+    
+
 def generate_search_grid(origin,distance):
     # Construct a grid of lat/long coords centered on the origin
 
@@ -113,7 +131,9 @@ def find_locations(origin, distance):
     #return sunnyLoc
 
 def main(origin, distance):
-    find_locations(origin, distance)
+    locations = overpass_query(origin, distance)
+    for place in locations:
+        print(place)
     # sun = find_sun(find_locations(origin, distance), dates)
     # if sun:
     #   print(list of sunny places)
