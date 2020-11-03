@@ -1,10 +1,13 @@
 import json
 import requests
+import datetime
 import argparse
 import pprint
 import shapely.geometry
 import pyproj
 import geopy
+import time
+from datetime import datetime
 from geopy.distance import geodesic
 from requests.exceptions import HTTPError
 
@@ -15,14 +18,12 @@ def overpass_query(origin,distance):
     result = requests.get("http://overpass-api.de/api/interpreter?data=[out:json];%28node%5B%22place%22%3D%22city%22%5D%28around%3A100000%2C47%2E6062%2C%2D122%2E3321%29%3Bnode%5B%22place%22%3D%22town%22%5D%28around%3A100000%2C47%2E6062%2C%2D122%2E3321%29%3B%29%3Bout%3B%0A")
     nodes = result.json()
 
-    locations = []
+    locations = {}
     for item in nodes["elements"]:
-        locations.append({
-            "name": item["tags"]["name"],
+        locations[item["tags"]["name"]] = {
             "lat": item["lat"],
             "lon": item["lon"]
-            })
-    
+            }
     return locations
     
 
@@ -115,30 +116,28 @@ def find_locations(origin, distance):
                 
     return locations
 
-#def find_sun(locations, dates):
-    # get weather reports for given date range at given locations.
-    # return dictionary of locations and their weather
-    
-    # sunnyLoc = {}
+def utc2local (utc):
+    # convert utc to local time
+    epoch = time.mktime(utc.timetuple())
+    offset = datetime.fromtimestamp(epoch) - datetime.utcfromtimestamp(epoch)
+    return utc + offset
 
-    # for each loc in locations:
-        # reverseGeoRes = requests.get('NOAA_URL')
-        # noaaData = reverseGeoRes.json() 
+def query_noaa(locations):
+    # Forecasts are divided into 2.5km grids. 
+    # Each NWS office is responsible for a section of the grid.
+    # get grid for each city in location, retrieve weather report for that grid,
+    # then update location dictionary with relevant weather data
 
-        # if all days in noaaData are not rainy,
-        #   sunnyLoc.append(loc:weather)
+    for loc in locations:
+        gridData = requests.get("https://api.weather.gov/points/" + str(locations[loc]["lat"]) + "," + str(locations[loc]["lon"])).json()
+        weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
+        locations[loc]["skyCover"] = weatherData["properties"]["skyCover"]
     
-    #return sunnyLoc
+    return locations
 
 def main(origin, distance):
     locations = overpass_query(origin, distance)
-    for place in locations:
-        print(place)
-    # sun = find_sun(find_locations(origin, distance), dates)
-    # if sun:
-    #   print(list of sunny places)
-    # else:
-    #   print("no sun")
+    query_noaa(locations)
 
 if __name__ == "__main__":
 
