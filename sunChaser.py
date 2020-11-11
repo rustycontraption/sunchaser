@@ -29,16 +29,16 @@ def query_overpass(origin,distance):
         )
     nodes = result.json()
 
-    data = {
+    locations = {
         "timestamp": datetime.now(),
         "locations": {}
     }
     for item in nodes["elements"]:
-        data["locations"][item["tags"]["name"]] = {
+        locations["locations"][item["tags"]["name"]] = {
             "lat": item["lat"],
             "lon": item["lon"]
             }
-    return data
+    return locations
     
 def query_noaa(data):
     print("querying noaa...")
@@ -85,9 +85,10 @@ def main(origin, distance):
     if os.path.exists("locations.json"):
         with open('locations.json') as data:
             locCache = json.load(data)
-        if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') < datetime.now() + timedelta(hours = 1):
+        if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') > datetime.now() + timedelta(hours = 1):
             locData = locCache
-        else: locData = query_noaa(locations)
+        else: 
+            locData = query_noaa(locations)
     else:
         locData = query_noaa(locations)
 
