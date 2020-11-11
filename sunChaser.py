@@ -12,12 +12,20 @@ from datetime import datetime, timezone, timedelta
 from geopy.distance import geodesic
 from requests.exceptions import HTTPError
 
-def overpass_query(origin,distance):
+def query_overpass(origin,distance):
     print("querying overpass....")
-    # Query Open Street Map for cities within 100,000 meters of Seattle
+    # Query Open Street Map for cities within given meters of origin
     # Return list of city names and lat/long coordinates
-    # TODO: build query based on origin and distance
-    result = requests.get("http://overpass-api.de/api/interpreter?data=[out:json];%28node%5B%22place%22%3D%22city%22%5D%28around%3A100000%2C47%2E6062%2C%2D122%2E3321%29%3Bnode%5B%22place%22%3D%22town%22%5D%28around%3A10000%2C47%2E6062%2C%2D122%2E3321%29%3B%29%3Bout%3B%0A")
+
+    result = requests.get(
+        'http://overpass-api.de/api/interpreter?data=[out:json];\
+            (node["place"="city"]\
+                (around:' + distance + ',' + origin + ');\
+            node["place"="town"]\
+                (around:' + distance + ',' + origin + ');\
+            );\
+            out;'
+        )
     nodes = result.json()
 
     locations = {}
@@ -36,24 +44,31 @@ def query_noaa(locations):
     # then update location dictionary with relevant weather data
 
     for loc in locations:
-        gridData = requests.get("https://api.weather.gov/points/" + str(locations[loc]["lat"]) + "," + str(locations[loc]["lon"])).json()
+        # Sleep between API requests to avoid hitting Google's request rate limit
+        gridData = requests.get("https://api.weather.gov/points/" + 
+            str(locations[loc]["lat"]) + "," + 
+            str(locations[loc]["lon"])).json()
         time.sleep(.02)
         weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
         time.sleep(.02)
+
+        # If a location doesn't have the required data, delete that location from the
+        # dict.
         if "properties" in weatherData and "skyCover" in weatherData["properties"]:
             locations[loc]["skyCover"] = weatherData["properties"]["skyCover"]
         else:
-            # Ensure these keys exist 
-            locations[loc]["skyCover"] = ""
-            locations[loc]["skyCover"]["values"] = ""
+            del locations[loc]
     
     print("done getting locations")
     return locations
 
 def main(origin, distance):
-    locations = overpass_query(origin, distance)
+    # Retrieve cities
+    locations = query_overpass(origin, distance)
+    # Retrieve weather forecast for cities
     locData = query_noaa(locations)
 
+    # NOAA returns forecasts for 
     currentTime = datetime.now(timezone.utc)
     roundedTime = currentTime.replace(second=0, microsecond=0, minute=0, hour=currentTime.hour) + timedelta(hours=currentTime.minute//30)
     for loc in locData:
@@ -70,14 +85,14 @@ if __name__ == "__main__":
         description="Find the nearest sun.")
     parser.add_argument(
         "--origin",
-        help="The origining location for trip.",
+        help="The origining location for trip in lat/lon coordinates.",
         action="store",
-        default="47.6062,-122.3321") # TODO: determine format of location data
+        default="47.6062,-122.3321")
     parser.add_argument(
         "--distance",
-        help="Maximum distance in miles to search for sun.",
+        help="Maximum distance in meters to search for sun.",
         action="store",
-        default=200)
+        default="100000")
 
     args = parser.parse_args()
 
