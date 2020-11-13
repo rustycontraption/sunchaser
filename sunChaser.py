@@ -36,27 +36,38 @@ def query_overpass(origin,distance):
     for item in nodes["elements"]:
         locations["locations"][item["tags"]["name"]] = {
             "lat": item["lat"],
-            "lon": item["lon"]
+            "lon": item["lon"],
+            "population": item["tags"]["population"]
             }
     return locations
     
+    
 def query_noaa(data):
     print("querying noaa...")
-    # Forecasts are divided into 2.5km grids. 
-    # Each NWS office is responsible for a section of the grid.
-    # get grid for each city in location, retrieve weather report for that grid,
-    # then update location dictionary with relevant weather data
-
     # Add timestamp for checking age of cached results
     data["timestamp"] = str(datetime.now())
 
     for loc in list(data["locations"]):
-        print(loc)
+        # Prune or retrieve forecast for locations.
         # Sleep between API requests to avoid hitting Google's request rate limit
-        gridData = requests.get("https://api.weather.gov/points/" + 
-            str(data["locations"][loc]["lat"]) + "," + 
+        print(loc)
+        
+        # Forecasts are divided into 2.5km grids. 
+        # Each NWS office is responsible for a section of the grid.
+        gridData = requests.get("https://api.weather.gov/points/" +
+            str(data["locations"][loc]["lat"]) + "," +
             str(data["locations"][loc]["lon"])).json()
         time.sleep(.02)
+        
+        # Prune location list to reduce further API calls
+        if (
+            gridData["properties"].values(gridData["properties"]["forecastGridData"])
+            and data["locations"][loc]["population"] < 10,000:
+        ):
+            del data["locations"][loc]
+            break
+
+        # Retrieve weather data from NOAA
         weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
         time.sleep(.02)
 
@@ -119,7 +130,7 @@ if __name__ == "__main__":
         "--distance",
         help="Maximum distance in meters to search for sun.",
         action="store",
-        default="10000")
+        default="20000")
 
     args = parser.parse_args()
 
