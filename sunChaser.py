@@ -37,7 +37,7 @@ def query_overpass(origin,distance):
         locations["locations"][item["tags"]["name"]] = {
             "lat": item["lat"],
             "lon": item["lon"],
-            "population": item["tags"]["population"]
+            "population": int(item["tags"]["population"])
             }
     return locations
     
@@ -54,6 +54,7 @@ def query_noaa(data):
         
         # Forecasts are divided into 2.5km grids. 
         # Each NWS office is responsible for a section of the grid.
+        print("get grid")
         gridData = requests.get("https://api.weather.gov/points/" +
             str(data["locations"][loc]["lat"]) + "," +
             str(data["locations"][loc]["lon"])).json()
@@ -61,13 +62,15 @@ def query_noaa(data):
         
         # Prune location list to reduce further API calls
         if (
-            gridData["properties"].values(gridData["properties"]["forecastGridData"])
-            and data["locations"][loc]["population"] < 10,000:
+            gridData["properties"]["forecastGridData"] in gridData["properties"].values()
+            and data["locations"][loc]["population"] < 10000
         ):
             del data["locations"][loc]
+            print("prune")
             break
 
         # Retrieve weather data from NOAA
+        print("noaa call")
         weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
         time.sleep(.02)
 
@@ -94,9 +97,10 @@ def main(origin, distance):
     # First check if there is cached data we can use instead to
     # save ourselves the API requests.
     if os.path.exists("locations.json"):
+        print("path exists")
         with open('locations.json') as data:
             locCache = json.load(data)
-        if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') > datetime.now() + timedelta(hours = 1):
+        if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') > datetime.now() + timedelta(hours = -1):
             locData = locCache
         else: 
             locData = query_noaa(locations)
