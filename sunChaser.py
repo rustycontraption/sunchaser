@@ -33,11 +33,13 @@ def query_overpass(origin,distance):
         "timestamp": datetime.now(),
         "locations": {}
     }
+
     for item in nodes["elements"]:
+        print(item["tags"])
         locations["locations"][item["tags"]["name"]] = {
             "lat": item["lat"],
             "lon": item["lon"],
-            "population": int(item["tags"]["population"])
+            "population": int(item["tags"].get("population", 0))
             }
     return locations
     
@@ -97,7 +99,6 @@ def main(origin, distance):
     # First check if there is cached data we can use instead to
     # save ourselves the API requests.
     if os.path.exists("locations.json"):
-        print("path exists")
         with open('locations.json') as data:
             locCache = json.load(data)
         if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') > datetime.now() + timedelta(hours = -1):
@@ -134,7 +135,7 @@ if __name__ == "__main__":
         "--distance",
         help="Maximum distance in meters to search for sun.",
         action="store",
-        default="20000")
+        default="30000")
 
     args = parser.parse_args()
 
