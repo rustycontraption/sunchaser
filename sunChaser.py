@@ -8,6 +8,7 @@ import geopy
 import time
 import dateutil
 import os
+import isodate
 from dateutil import parser
 from datetime import datetime, timezone, timedelta
 from geopy.distance import geodesic
@@ -35,7 +36,6 @@ def query_overpass(origin,distance):
     }
 
     for item in nodes["elements"]:
-        print(item["tags"])
         locations["locations"][item["tags"]["name"]] = {
             "lat": item["lat"],
             "lon": item["lon"],
@@ -55,23 +55,38 @@ def query_noaa(data):
     for loc in list(data["locations"]):
         # Prune or retrieve forecast for locations.
         # Sleep between API requests to avoid hitting Google's request rate limit
- 
+
         # Forecasts are divided into 2.5km grids. 
         # Each NWS office is responsible for a section of the grid.
         gridData = requests.get("https://api.weather.gov/points/" +
             str(data["locations"][loc]["lat"]) + "," +
             str(data["locations"][loc]["lon"])).json()
         data["locations"][loc]["grid"] = gridData["properties"]["forecastGridData"]
-        gridCheck.append(gridData["properties"]["forecastGridData"])
         
-        # Prune location list to reduce further API calls
+        #Prune location list to reduce further API calls
         if gridData["properties"]["forecastGridData"] in gridCheck:
             del data["locations"][loc]
             continue
+        else:
+            gridCheck.append(gridData["properties"]["forecastGridData"])
 
         # Retrieve weather data from NOAA
-        weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
-        time.sleep(.02)
+        try:
+            response = requests.get(gridData["properties"]["forecastGridData"], timeout=2)
+        except Exception as e:
+            response = {}
+            print(e)
+
+        if (
+            not response or
+            response.status_code != 200        
+        ):
+            print("del ", loc)
+            del data["locations"][loc]
+            continue
+        else:
+            print(response, loc)
+            weatherData = response.json()
 
         # If a location doesn't have the required data, delete that location
         # from the dict.
@@ -79,7 +94,7 @@ def query_noaa(data):
             data["locations"][loc]["skyCover"] = weatherData["properties"]["skyCover"]
         else:
             del data["locations"][loc]
-    
+        
     print("done getting locations")
 
     # Cache results
@@ -107,16 +122,17 @@ def main(origin, distance):
 
     # Obtaining forecast for desired the time is a pain in the ass.
 
-    # Round our current time to nearest hour to compare with NOAAs
-    # hourly forecasts
+    # Find current conditions
+    # TODO: Add support for future forecasts
     currentTime = datetime.now(timezone.utc)
-    roundedTime = currentTime.replace(second=0, microsecond=0, minute=0, hour=currentTime.hour) + timedelta(hours=currentTime.minute//30)
     for loc in locData["locations"]:
-        for value in locData["locations"][loc]["skyCover"]["values"]:
-            validTime = value["validTime"].split("/")[0]
-            validTimeFormatted = dateutil.parser.parse(validTime)
-            # if validTimeFormatted == roundedTime:
-            #     print(loc, value)
+        for data in locData["locations"][loc]["skyCover"]["values"]:
+            validTime = data["validTime"].split("/")
+            forecastDuration = isodate.parse_duration(validTime[1])
+            forecastTime = dateutil.parser.parse(validTime[0])
+            forecastEndTime = (forecastTime + forecastDuration) - timedelta(minutes=1)
+            if currentTime >= forecastTime and currentTime <= forecastEndTime:
+                print(loc, " sky cover is currently ", data["value"])
 
 if __name__ == "__main__":
 
@@ -132,7 +148,7 @@ if __name__ == "__main__":
         "--distance",
         help="Maximum distance in meters to search for sun.",
         action="store",
-        default="30000")
+        default="15000")
 
     args = parser.parse_args()
 
