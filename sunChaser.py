@@ -8,6 +8,7 @@ import geopy
 import time
 import dateutil
 import os
+import isodate
 from dateutil import parser
 from datetime import datetime, timezone, timedelta
 from geopy.distance import geodesic
@@ -121,21 +122,17 @@ def main(origin, distance):
 
     # Obtaining forecast for desired the time is a pain in the ass.
 
-    # Round our current time to nearest hour to compare with NOAAs
-    # hourly forecasts
+    # Find current conditions
+    # TODO: Add support for future forecasts
     currentTime = datetime.now(timezone.utc)
-    print(currentTime)
-    roundedTime = currentTime.replace(second=0, microsecond=0, minute=0, hour=currentTime.hour) + timedelta(hours=currentTime.minute//30)
-    print(roundedTime)
     for loc in locData["locations"]:
-        for value in locData["locations"][loc]["skyCover"]["values"]:
-            print(value)
-            validTime = value["validTime"].split("/")
-            print(validTime)
-            # validTimeFormatted = dateutil.parser.parse(validTime)
-            
-            # if validTimeFormatted == roundedTime:
-            #     print(loc, value)
+        for data in locData["locations"][loc]["skyCover"]["values"]:
+            validTime = data["validTime"].split("/")
+            forecastDuration = isodate.parse_duration(validTime[1])
+            forecastTime = dateutil.parser.parse(validTime[0])
+            forecastEndTime = (forecastTime + forecastDuration) - timedelta(minutes=1)
+            if currentTime >= forecastTime and currentTime <= forecastEndTime:
+                print(loc, " sky cover is currently ", data["value"])
 
 if __name__ == "__main__":
 
