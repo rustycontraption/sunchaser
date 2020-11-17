@@ -33,35 +33,48 @@ def query_overpass(origin,distance):
         "timestamp": datetime.now(),
         "locations": {}
     }
+
     for item in nodes["elements"]:
+        print(item["tags"])
         locations["locations"][item["tags"]["name"]] = {
             "lat": item["lat"],
-            "lon": item["lon"]
+            "lon": item["lon"],
+            "population": int(item["tags"].get("population", 0))
             }
     return locations
     
 def query_noaa(data):
     print("querying noaa...")
-    # Forecasts are divided into 2.5km grids. 
-    # Each NWS office is responsible for a section of the grid.
-    # get grid for each city in location, retrieve weather report for that grid,
-    # then update location dictionary with relevant weather data
-
     # Add timestamp for checking age of cached results
     data["timestamp"] = str(datetime.now())
+    
+    # Store NWS grids for each location so we can prune a 
+    # location if there is already a location in the same grid
+    gridCheck = []
 
     for loc in list(data["locations"]):
-        print(loc)
+        # Prune or retrieve forecast for locations.
         # Sleep between API requests to avoid hitting Google's request rate limit
-        gridData = requests.get("https://api.weather.gov/points/" + 
-            str(data["locations"][loc]["lat"]) + "," + 
+ 
+        # Forecasts are divided into 2.5km grids. 
+        # Each NWS office is responsible for a section of the grid.
+        gridData = requests.get("https://api.weather.gov/points/" +
+            str(data["locations"][loc]["lat"]) + "," +
             str(data["locations"][loc]["lon"])).json()
-        time.sleep(.02)
+        data["locations"][loc]["grid"] = gridData["properties"]["forecastGridData"]
+        gridCheck.append(gridData["properties"]["forecastGridData"])
+        
+        # Prune location list to reduce further API calls
+        if gridData["properties"]["forecastGridData"] in gridCheck:
+            del data["locations"][loc]
+            continue
+
+        # Retrieve weather data from NOAA
         weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
         time.sleep(.02)
 
-        # If a location doesn't have the required data, delete that location from the
-        # dict.
+        # If a location doesn't have the required data, delete that location
+        # from the dict.
         if "properties" in weatherData and "skyCover" in weatherData["properties"]:
             data["locations"][loc]["skyCover"] = weatherData["properties"]["skyCover"]
         else:
@@ -85,7 +98,7 @@ def main(origin, distance):
     if os.path.exists("locations.json"):
         with open('locations.json') as data:
             locCache = json.load(data)
-        if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') > datetime.now() + timedelta(hours = 1):
+        if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') > datetime.now() + timedelta(hours = -1):
             locData = locCache
         else: 
             locData = query_noaa(locations)
@@ -102,8 +115,8 @@ def main(origin, distance):
         for value in locData["locations"][loc]["skyCover"]["values"]:
             validTime = value["validTime"].split("/")[0]
             validTimeFormatted = dateutil.parser.parse(validTime)
-            if validTimeFormatted == roundedTime:
-                print(loc, value)
+            # if validTimeFormatted == roundedTime:
+            #     print(loc, value)
 
 if __name__ == "__main__":
 
@@ -119,7 +132,7 @@ if __name__ == "__main__":
         "--distance",
         help="Maximum distance in meters to search for sun.",
         action="store",
-        default="10000")
+        default="30000")
 
     args = parser.parse_args()
 
