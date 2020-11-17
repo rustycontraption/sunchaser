@@ -35,7 +35,6 @@ def query_overpass(origin,distance):
     }
 
     for item in nodes["elements"]:
-        print(item["tags"])
         locations["locations"][item["tags"]["name"]] = {
             "lat": item["lat"],
             "lon": item["lon"],
@@ -55,36 +54,42 @@ def query_noaa(data):
     for loc in list(data["locations"]):
         # Prune or retrieve forecast for locations.
         # Sleep between API requests to avoid hitting Google's request rate limit
- 
+
         # Forecasts are divided into 2.5km grids. 
         # Each NWS office is responsible for a section of the grid.
         gridData = requests.get("https://api.weather.gov/points/" +
             str(data["locations"][loc]["lat"]) + "," +
             str(data["locations"][loc]["lon"])).json()
         data["locations"][loc]["grid"] = gridData["properties"]["forecastGridData"]
-        gridCheck.append(gridData["properties"]["forecastGridData"])
         
-        # Prune location list to reduce further API calls
+        #Prune location list to reduce further API calls
         if gridData["properties"]["forecastGridData"] in gridCheck:
             del data["locations"][loc]
             continue
+        else:
+            gridCheck.append(gridData["properties"]["forecastGridData"])
 
         # Retrieve weather data from NOAA
-        weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
-        time.sleep(.02)
-
+        weatherData = requests.get(gridData["properties"]["forecastGridData"], timeout=2)
+        if weatherData.status_code != 200:
+            print("del ", loc)
+            del data["locations"][loc]
+            continue
+        else:
+            print(weatherData, loc)
+            weatherData = weatherData.json()
         # If a location doesn't have the required data, delete that location
         # from the dict.
         if "properties" in weatherData and "skyCover" in weatherData["properties"]:
             data["locations"][loc]["skyCover"] = weatherData["properties"]["skyCover"]
         else:
-            del data["locations"][loc]
-    
+            data.pop(["locations"][loc])
+        
     print("done getting locations")
 
     # Cache results
-    with open('locations.json', 'w') as outfile:
-        json.dump(data, outfile)
+    # with open('locations.json', 'w') as outfile:
+    #     json.dump(data, outfile)
 
     return data
 
@@ -110,11 +115,16 @@ def main(origin, distance):
     # Round our current time to nearest hour to compare with NOAAs
     # hourly forecasts
     currentTime = datetime.now(timezone.utc)
+    print(currentTime)
     roundedTime = currentTime.replace(second=0, microsecond=0, minute=0, hour=currentTime.hour) + timedelta(hours=currentTime.minute//30)
+    print(roundedTime)
     for loc in locData["locations"]:
         for value in locData["locations"][loc]["skyCover"]["values"]:
-            validTime = value["validTime"].split("/")[0]
-            validTimeFormatted = dateutil.parser.parse(validTime)
+            print(value)
+            validTime = value["validTime"].split("/")
+            print(validTime)
+            # validTimeFormatted = dateutil.parser.parse(validTime)
+            
             # if validTimeFormatted == roundedTime:
             #     print(loc, value)
 
@@ -132,7 +142,7 @@ if __name__ == "__main__":
         "--distance",
         help="Maximum distance in meters to search for sun.",
         action="store",
-        default="30000")
+        default="15000")
 
     args = parser.parse_args()
 
