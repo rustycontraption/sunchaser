@@ -70,26 +70,35 @@ def query_noaa(data):
             gridCheck.append(gridData["properties"]["forecastGridData"])
 
         # Retrieve weather data from NOAA
-        weatherData = requests.get(gridData["properties"]["forecastGridData"], timeout=2)
-        if weatherData.status_code != 200:
+        try:
+            response = requests.get(gridData["properties"]["forecastGridData"], timeout=2)
+        except Exception as e:
+            response = {}
+            print(e)
+
+        if (
+            not response or
+            response.status_code != 200        
+        ):
             print("del ", loc)
             del data["locations"][loc]
             continue
         else:
-            print(weatherData, loc)
-            weatherData = weatherData.json()
+            print(response, loc)
+            weatherData = response.json()
+
         # If a location doesn't have the required data, delete that location
         # from the dict.
         if "properties" in weatherData and "skyCover" in weatherData["properties"]:
             data["locations"][loc]["skyCover"] = weatherData["properties"]["skyCover"]
         else:
-            data.pop(["locations"][loc])
+            del data["locations"][loc]
         
     print("done getting locations")
 
     # Cache results
-    # with open('locations.json', 'w') as outfile:
-    #     json.dump(data, outfile)
+    with open('locations.json', 'w') as outfile:
+        json.dump(data, outfile)
 
     return data
 
