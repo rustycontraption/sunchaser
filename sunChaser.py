@@ -43,41 +43,38 @@ def query_overpass(origin,distance):
             }
     return locations
     
-    
 def query_noaa(data):
     print("querying noaa...")
     # Add timestamp for checking age of cached results
     data["timestamp"] = str(datetime.now())
+    
+    # Store NWS grids for each location so we can prune a 
+    # location if there is already a location in the same grid
+    gridCheck = []
 
     for loc in list(data["locations"]):
         # Prune or retrieve forecast for locations.
         # Sleep between API requests to avoid hitting Google's request rate limit
-        print(loc)
-        
+ 
         # Forecasts are divided into 2.5km grids. 
         # Each NWS office is responsible for a section of the grid.
-        print("get grid")
         gridData = requests.get("https://api.weather.gov/points/" +
             str(data["locations"][loc]["lat"]) + "," +
             str(data["locations"][loc]["lon"])).json()
-        time.sleep(.02)
+        data["locations"][loc]["grid"] = gridData["properties"]["forecastGridData"]
+        gridCheck.append(gridData["properties"]["forecastGridData"])
         
         # Prune location list to reduce further API calls
-        if (
-            gridData["properties"]["forecastGridData"] in gridData["properties"].values()
-            and data["locations"][loc]["population"] < 10000
-        ):
+        if gridData["properties"]["forecastGridData"] in gridCheck:
             del data["locations"][loc]
-            print("prune")
-            break
+            continue
 
         # Retrieve weather data from NOAA
-        print("noaa call")
         weatherData = requests.get(gridData["properties"]["forecastGridData"]).json()
         time.sleep(.02)
 
-        # If a location doesn't have the required data, delete that location from the
-        # dict.
+        # If a location doesn't have the required data, delete that location
+        # from the dict.
         if "properties" in weatherData and "skyCover" in weatherData["properties"]:
             data["locations"][loc]["skyCover"] = weatherData["properties"]["skyCover"]
         else:
@@ -118,8 +115,8 @@ def main(origin, distance):
         for value in locData["locations"][loc]["skyCover"]["values"]:
             validTime = value["validTime"].split("/")[0]
             validTimeFormatted = dateutil.parser.parse(validTime)
-            if validTimeFormatted == roundedTime:
-                print(loc, value)
+            # if validTimeFormatted == roundedTime:
+            #     print(loc, value)
 
 if __name__ == "__main__":
 
