@@ -4,6 +4,7 @@ import argparse
 import time
 import os
 import isodate
+import click
 from dateutil import parser
 from datetime import datetime, timezone, timedelta
 from requests.exceptions import HTTPError
@@ -100,6 +101,15 @@ def query_noaa(data):
     return data
 
 
+@click.command()
+@click.option('--origin',
+              help='The origining location for trip in lat/lon coordinates',
+              default="47.6062, -122.3321",
+              show_default=True)
+@click.option('--distance',
+              help="Maximum distance in meters to search for sun.",
+              default="15000",
+              show_default=True)
 def main(origin, distance):
     # Retrieve cities
     locations = query_overpass(origin, distance)
@@ -112,7 +122,7 @@ def main(origin, distance):
             locCache = json.load(data)
         if datetime.strptime(locCache['timestamp'], '%Y-%m-%d %H:%M:%S.%f') > datetime.now() + timedelta(hours = -1):
             locData = locCache
-        else: 
+        else:
             locData = query_noaa(locations)
     else:
         locData = query_noaa(locations)
@@ -134,20 +144,4 @@ def main(origin, distance):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(
-        prog="sun chaser",
-        description="Find the nearest sun.")
-    parser.add_argument(
-        "--origin",
-        help="The origining location for trip in lat/lon coordinates.",
-        action="store",
-        default="47.6062,-122.3321")
-    parser.add_argument(
-        "--distance",
-        help="Maximum distance in meters to search for sun.",
-        action="store",
-        default="15000")
-
-    args = parser.parse_args()
-
-    main(args.origin, args.distance)
+    main()
