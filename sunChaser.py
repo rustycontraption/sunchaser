@@ -49,6 +49,9 @@ def query_noaa(data):
     # location if there is already a location in the same grid
     gridCheck = []
 
+    # Count results so we can report progress to user
+    resultCount = 0
+
     for loc in list(data["locations"]):
         # Prune or retrieve forecast for locations.
         # Sleep between API requests to avoid hitting Google's request rate limit
@@ -70,10 +73,10 @@ def query_noaa(data):
         # Retrieve weather data from NOAA
         # TODO: There must be a better way to handle timeouts
         try:
-            response = requests.get(gridData["properties"]["forecastGridData"], timeout=2)
-        except HTTPError as err:
+            response = requests.get(gridData["properties"]["forecastGridData"], timeout=1)
+        except requests.exceptions.RequestException as err:
             response = {}
-            print(e)
+            print(err)
 
         if (
             not response or
@@ -90,6 +93,9 @@ def query_noaa(data):
             data["locations"][loc]["skyCover"] = weatherData["properties"]["skyCover"]
         else:
             del data["locations"][loc]
+        
+        resultCount += 1
+        print("Retrieved this many results so far: ", resultCount)
 
     print("done getting locations")
 
