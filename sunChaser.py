@@ -68,9 +68,10 @@ def query_noaa(data):
             gridCheck.append(gridData["properties"]["forecastGridData"])
 
         # Retrieve weather data from NOAA
+        # TODO: There must be a better way to handle timeouts
         try:
             response = requests.get(gridData["properties"]["forecastGridData"], timeout=2)
-        except Exception as e:
+        except HTTPError as err:
             response = {}
             print(e)
 
@@ -78,11 +79,9 @@ def query_noaa(data):
             not response or
             response.status_code != 200
         ):
-            print("del ", loc)
             del data["locations"][loc]
             continue
         else:
-            print(response, loc)
             weatherData = response.json()
 
         # If a location doesn't have the required data, delete that location
@@ -127,19 +126,22 @@ def main(origin, distance):
     else:
         locData = query_noaa(locations)
 
-    # Obtaining forecast for desired the time is a pain in the ass.
-
     # Find current conditions
     # TODO: Add support for future forecasts
+    # TODO: Return data in easier to read format, table maybe?
+    # TODO: Filter returned data to show only sunny places
     currentTime = datetime.now(timezone.utc)
     for loc in locData["locations"]:
         for data in locData["locations"][loc]["skyCover"]["values"]:
+            # Obtaining forecast for desired the time is a pain in the ass.
+            # TODO: We'll want to do this for other forecast data at some
+            #       point, should split this out into helper function.
             validTime = data["validTime"].split("/")
             forecastDuration = isodate.parse_duration(validTime[1])
             forecastTime = parser.parse(validTime[0])
             forecastEndTime = (forecastTime + forecastDuration) - timedelta(minutes=1)
             if currentTime >= forecastTime and currentTime <= forecastEndTime:
-                print(loc, " sky cover is currently ", data["value"])
+                print(loc + " sky cover is currently " + str(data["value"]) + "%")
 
 
 if __name__ == "__main__":
